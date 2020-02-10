@@ -1,0 +1,24 @@
+{
+    "name": "maged-karim/laravel-scaffolding",
+    "description": "A fresh scaffolding for laravel applications",
+    "keywords": ["laravel", "scaffolding", "dashboard", "admin", "administrator"],
+    "license": "MIT",
+    "require": {
+        "php": "^7.0",
+        "illuminate/console": "~5.5|^6.0",
+        "illuminate/filesystem": "~5.5|^6.0",
+        "illuminate/container": "~5.5|^6.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "MagedKarim\\LaravelScaffolding\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "MagedKarim\\LaravelScaffolding\\Providers\\LaravelScaffoldingServiceProvider"
+            ]
+        }
+    }
+}
