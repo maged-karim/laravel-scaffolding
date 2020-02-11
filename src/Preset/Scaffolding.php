@@ -39,6 +39,7 @@ class Scaffolding
         $this->addFreshTokenMiddleware();
         $this->registerDashboardRoutesServiceProvider();
         $this->copyLangFiles();
+        $this->replaceRouteRedirect();
     }
 
     /**
@@ -359,5 +360,25 @@ class Scaffolding
             return;
         }
         $filesystem->copyDirectory(__DIR__.'/stubs/resources/lang', resource_path('lang'));
+    }
+
+    protected function replaceRouteRedirect()
+    {
+        $file = app_path('Providers/RouteServiceProvider.php');
+
+        $filesystem = new Filesystem;
+
+        if (! file_exists($file)) {
+            return;
+        }
+
+        file_put_contents(
+            $file,
+            str_replace(
+                "public const HOME = '/home';",
+                "public const HOME = '/dashboard';",
+                $filesystem->get($file)
+            )
+        );
     }
 }
