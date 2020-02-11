@@ -40,6 +40,7 @@ class Scaffolding
         $this->registerDashboardRoutesServiceProvider();
         $this->copyLangFiles();
         $this->replaceRouteRedirect();
+        $this->combilingDashoardLayoutAndBackend();
     }
 
     /**
@@ -225,6 +226,7 @@ class Scaffolding
         $files = $this->rglob(app_path('*.php'));
         $files = array_merge($files, $this->rglob(config_path('*.php')));
         $files = array_merge($files, $this->rglob(resource_path('*.php')));
+        $files = array_merge($files, $this->rglob(database_path('*.php')));
 
         if ($user = app_path('Models/User.php')) {
             file_put_contents(
@@ -242,6 +244,10 @@ class Scaffolding
                 $file,
                 str_replace("{$namespace}\User", "{$namespace}\Models\User", $filesystem->get($file))
             );
+        }
+
+        if (! file_exists($admin = app_path('Models/Admin.php'))) {
+            copy(__DIR__.'/stubs/Models/Admin.stub', $admin);
         }
 
         if (file_exists(app_path('User.php'))) {
@@ -285,20 +291,47 @@ class Scaffolding
     protected function updateUsersMigration()
     {
         $file = $this->rglob(database_path('migrations/*_create_users_table.*'))[0];
+        $factory = database_path('factories/UserFactory.php');
 
         $filesystem = new Filesystem;
 
-        if (Str::contains($filesystem->get($file), "\$table->string('type')->nullable();")) {
-            return;
+        if (! Str::contains($filesystem->get($file), "\$table->string('type')->nullable();")) {
+            file_put_contents(
+                $file,
+                str_replace(
+                    "\$table->string('password');",
+                    "\$table->string('password');\n            \$table->string('type')->nullable();", $filesystem->get($file)
+                )
+            );
         }
 
-        file_put_contents(
-            $file,
-            str_replace(
-                "\$table->string('password');",
-                "\$table->string('password');\n            \$table->string('type')->nullable();", $filesystem->get($file)
-            )
-        );
+        if (! Str::contains($filesystem->get($factory), "type")) {
+            file_put_contents(
+                $factory,
+                str_replace(
+                    "'email_verified_at' => now(),",
+                    "'email_verified_at' => now(),\n        'type' => \$faker->randomElement([User::USER_TYPE, User::ADMIN_TYPE]),",
+                    $filesystem->get($factory)
+                )
+            );
+        }
+
+        if (file_exists($file = database_path('seeds/DatabaseSeeder.php'))) {
+            file_put_contents(
+                $file,
+                $filesystem->get(__DIR__ . '/stubs/database/seeds/DatabaseSeeder.php')
+            );
+        }
+
+        if (! file_exists($file = database_path('seeds/DummyDataSeeder.php'))) {
+            copy(__DIR__ . '/stubs/database/seeds/DummyDataSeeder.php', $file);
+        }
+
+        if (! file_exists($file = database_path('factories/AdminFactory.php'))) {
+            copy(__DIR__ . '/stubs/database/factories/AdminFactory.php', $file);
+        }
+
+
     }
 
     protected function addFreshTokenMiddleware()
@@ -323,12 +356,13 @@ class Scaffolding
             )
         );
     }
+
     protected function addDashboardAccessMiddleware()
     {
         $middlewarePath = app_path('Http/Middleware/DashboardAccessMiddleware.php');
 
         if (! file_exists($middlewarePath)) {
-            copy(__DIR__.'/stubs/Middleware/DashboardAccessMiddleware.stub', $middlewarePath);
+            copy(__DIR__ . '/stubs/Middleware/DashboardAccessMiddleware.stub', $middlewarePath);
         }
 
         $file = app_path('Http/Kernel.php');
@@ -359,7 +393,7 @@ class Scaffolding
         if ($filesystem->isDirectory(resource_path('lang/ar'))) {
             return;
         }
-        $filesystem->copyDirectory(__DIR__.'/stubs/resources/lang', resource_path('lang'));
+        $filesystem->copyDirectory(__DIR__ . '/stubs/resources/lang', resource_path('lang'));
     }
 
     protected function replaceRouteRedirect()
@@ -380,5 +414,25 @@ class Scaffolding
                 $filesystem->get($file)
             )
         );
+    }
+
+    protected function combilingDashoardLayoutAndBackend()
+    {
+        $file = resource_path('views/layouts/dashboard.blade.php');
+
+        $filesystem = new Filesystem;
+
+        if (! file_exists($file)) {
+            copy(__DIR__ . '/stubs/resources/views/layouts/dashboard.blade.php', $file);
+        }
+
+        $homeController = app_path('Http/Controllers/Dashboard/HomeController.php');
+
+        if (! file_exists($homeController)) {
+            if (! $filesystem->isDirectory($directory = app_path('Http/Controllers/Dashboard'))) {
+                $filesystem->makeDirectory($directory, 0755, true);
+            }
+            copy(__DIR__ . '/stubs/Controllers/Dashboard/HomeController.php', $homeController);
+        }
     }
 }
