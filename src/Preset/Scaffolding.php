@@ -32,7 +32,13 @@ class Scaffolding
         $this->updateComposer();
         $this->updateGitignore();
         $this->copyFiles();
+        $this->copyModelsTraits();
+        $this->replaceUserNamespace();
+        $this->updateUsersMigration();
+        $this->addDashboardAccessMiddleware();
+        $this->addFreshTokenMiddleware();
         $this->registerDashboardRoutesServiceProvider();
+        $this->copyLangFiles();
     }
 
     /**
@@ -47,6 +53,11 @@ class Scaffolding
                 'davejamesmiller/laravel-breadcrumbs' => '^5.3',
                 'elnooronline/laravel-bootstrap-forms' => '^2.2',
                 'laraeast/laravel-settings' => '^1.0',
+                'calebporzio/parental' => '^0.9',
+                'spatie/laravel-medialibrary' => '^7.6',
+                'laravel/passport' => '^7.3',
+                'doctrine/dbal' => '^2.9',
+                'laracasts/presenter' => '^0.2.1',
             ] + $packages;
 
         if ($this->config['multilingual']) {
@@ -68,6 +79,7 @@ class Scaffolding
                 'barryvdh/laravel-ide-helper' => '^2.6',
                 'barryvdh/laravel-debugbar' => '^3.2',
                 'friendsofphp/php-cs-fixer' => '^2.15',
+                'martinlindhe/laravel-vue-i18n-generator' => '^0.1.42',
             ] + $packages;
 
         if ($this->config['template'] == 'adminlte') {
@@ -201,5 +213,151 @@ class Scaffolding
             "namespace {$namespace}\Providers;",
             file_get_contents(app_path('Providers/DashboardRouteServiceProvider.php'))
         ));
+    }
+
+    protected function replaceUserNamespace()
+    {
+        $namespace = Container::getInstance()->getNamespace();
+        $namespace = Str::replaceLast('\\', '', $namespace);
+        $filesystem = new Filesystem;
+
+        $files = $this->rglob(app_path('*.php'));
+        $files = array_merge($files, $this->rglob(config_path('*.php')));
+        $files = array_merge($files, $this->rglob(resource_path('*.php')));
+
+        if ($user = app_path('Models/User.php')) {
+            file_put_contents(
+                $user,
+                str_replace(
+                    "namespace {$namespace};",
+                    "namespace {$namespace}\Models;",
+                    $filesystem->get($user)
+                )
+            );
+        }
+
+        foreach ($files as $file) {
+            file_put_contents(
+                $file,
+                str_replace("{$namespace}\User", "{$namespace}\Models\User", $filesystem->get($file))
+            );
+        }
+
+        if (file_exists(app_path('User.php'))) {
+            $filesystem->delete(app_path('User.php'));
+        }
+    }
+
+    protected function copyModelsTraits()
+    {
+        $filesystem = new Filesystem;
+
+        if (! $filesystem->isDirectory($directory = app_path('Models/Helpers'))) {
+            $filesystem->makeDirectory($directory, 0755, true);
+        }
+        if (! $filesystem->isDirectory($directory = app_path('Models/Concerns'))) {
+            $filesystem->makeDirectory($directory, 0755, true);
+        }
+        copy(
+            __DIR__ . '/stubs/Models/User.stub',
+            app_path('Models/User.php')
+        );
+        copy(
+            __DIR__ . '/stubs/Models/Helpers/UserHelpers.stub',
+            app_path('Models/Helpers/UserHelpers.php')
+        );
+        copy(
+            __DIR__ . '/stubs/Models/Concerns/HasMediaTrait.stub',
+            app_path('Models/Concerns/HasMediaTrait.php')
+        );
+    }
+
+    protected function rglob($pattern, $flags = 0)
+    {
+        $files = glob($pattern, $flags);
+        foreach (glob(dirname($pattern) . '/*', GLOB_ONLYDIR | GLOB_NOSORT) as $dir) {
+            $files = array_merge($files, $this->rglob($dir . '/' . basename($pattern), $flags));
+        }
+        return $files;
+    }
+
+    protected function updateUsersMigration()
+    {
+        $file = $this->rglob(database_path('migrations/*_create_users_table.*'))[0];
+
+        $filesystem = new Filesystem;
+
+        if (Str::contains($filesystem->get($file), "\$table->string('type')->nullable();")) {
+            return;
+        }
+
+        file_put_contents(
+            $file,
+            str_replace(
+                "\$table->string('password');",
+                "\$table->string('password');\n            \$table->string('type')->nullable();", $filesystem->get($file)
+            )
+        );
+    }
+
+    protected function addFreshTokenMiddleware()
+    {
+        $file = app_path('Http/Kernel.php');
+
+        $filesystem = new Filesystem;
+
+        if (! file_exists($file)) {
+            return;
+        }
+
+        if (Str::contains($filesystem->get($file), 'CreateFreshApiToken')) {
+            return;
+        }
+
+        file_put_contents(
+            $file,
+            str_replace(
+                "\App\Http\Middleware\VerifyCsrfToken::class,",
+                "\App\Http\Middleware\VerifyCsrfToken::class,\n            \Laravel\Passport\Http\Middleware\CreateFreshApiToken::class,", $filesystem->get($file)
+            )
+        );
+    }
+    protected function addDashboardAccessMiddleware()
+    {
+        $middlewarePath = app_path('Http/Middleware/DashboardAccessMiddleware.php');
+
+        if (! file_exists($middlewarePath)) {
+            copy(__DIR__.'/stubs/Middleware/DashboardAccessMiddleware.stub', $middlewarePath);
+        }
+
+        $file = app_path('Http/Kernel.php');
+
+        $filesystem = new Filesystem;
+
+        if (! file_exists($file)) {
+            return;
+        }
+
+        if (Str::contains($filesystem->get($file), 'DashboardAccessMiddleware')) {
+            return;
+        }
+
+        file_put_contents(
+            $file,
+            str_replace(
+                "'auth.basic' => \Illuminate\Auth\Middleware\AuthenticateWithBasicAuth::class,",
+                "'auth.basic' => \Illuminate\Auth\Middleware\AuthenticateWithBasicAuth::class,\n        'dashboard.access' => \App\Http\Middleware\DashboardAccessMiddleware::class,", $filesystem->get($file)
+            )
+        );
+    }
+
+    protected function copyLangFiles()
+    {
+        $filesystem = new Filesystem;
+
+        if ($filesystem->isDirectory(resource_path('lang/ar'))) {
+            return;
+        }
+        $filesystem->copyDirectory(__DIR__.'/stubs/resources/lang', resource_path('lang'));
     }
 }

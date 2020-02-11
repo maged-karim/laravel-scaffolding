@@ -53,7 +53,6 @@ class ScaffoldingInstallCommand extends Command
         }
 
         $template = $this->choice('Which templete you want to install ?', [
-            'blank',
             'adminlte',
         ], 0);
 
