@@ -145,5 +145,9 @@ return [
     |
     */
 
-    'attributes' => [],
+    'attributes' => [
+        'name' => 'الاسم',
+        'email' => 'البريد الالكتروني',
+        'password' => 'كلمة المرور',
+    ],
 ];
