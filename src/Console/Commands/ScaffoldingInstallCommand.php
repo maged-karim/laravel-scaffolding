@@ -39,14 +39,6 @@ class ScaffoldingInstallCommand extends Command
     public function handle()
     {
         $this->assets();
-
-        if (empty(glob(database_path('migrations/*_create_media_table*.*')))) {
-            $this->call('vendor:publish', [
-                '--provider' => 'Spatie\MediaLibrary\MediaLibraryServiceProvider',
-                '--tag' => 'migrations',
-                '--quiet' => true,
-            ]);
-        }
     }
 
     protected function assets()

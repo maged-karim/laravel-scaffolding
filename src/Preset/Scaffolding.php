@@ -422,6 +422,10 @@ class Scaffolding
 
         $filesystem = new Filesystem;
 
+
+        if (! $filesystem->isDirectory($directory = resource_path('views/layouts'))) {
+            $filesystem->makeDirectory($directory, 0755, true);
+        }
         if (! file_exists($file)) {
             copy(__DIR__ . '/stubs/resources/views/layouts/dashboard.blade.php', $file);
         }
